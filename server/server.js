@@ -3,7 +3,6 @@ import cors from "cors";
 import { normalizeTitle, formatDuration } from "./utils.js"
 import { sixDegreesOfWikipediaUsingBFS }  from "./six-degrees-of-wikipedia.js";
 
-
 const app = express();
 app.use(cors());
 app.use(express.json());
