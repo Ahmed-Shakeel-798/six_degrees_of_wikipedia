@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 
 function App() {
   const [start, setStart] = useState("");
@@ -6,34 +6,49 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+  const eventSourceRef = useRef(null);
 
   async function handleSubmit(e) {
     e.preventDefault();
-    setLoading(true);
-    setError(null);
+
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+    }
+
     setResult(null);
+    setError(null);
+    setLoading(true);
 
-    try {
-      const response = await fetch("http://localhost:3000/api/search", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          startArticle: start,
-          targetArticle: target,
-        }),
-      });
+    const source = new EventSource(
+      `http://localhost:3000/api/search/stream?startArticle=${encodeURIComponent(start)}&targetArticle=${encodeURIComponent(target)}`
+    );
 
-      if (!response.ok) {
-        throw new Error("API request failed");
+    eventSourceRef.current = source;
+
+    source.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+
+      if (data.status === "progress") {
+        setResult((prev) => ({
+          ...(prev || {}),
+          ...data,
+        }));
       }
 
-      const data = await response.json();
-      setResult(data);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+      if (data.status === "done") {
+        setResult(data);
+        setLoading(false);
+        source.close();
+        eventSourceRef.current = null;
+      }
+
+      if (data.status === "error") {
+        setError(data.message);
+        setLoading(false);
+        source.close();
+        eventSourceRef.current = null;
+      }
+    };
   }
 
   return (
@@ -63,42 +78,55 @@ function App() {
         {loading && <p style={styles.muted}>⏳ Searching Wikipedia…</p>}
         {error && <p style={styles.error}>{error}</p>}
 
-        {result && (
+        {(loading || result) && (
           <div style={styles.resultCard}>
-            <h3>Path Found</h3>
 
+            {/* PATH */}
             <div style={styles.path}>
-              {result.path.map((node, index) => {
-                const [title, link] = Object.entries(node)[0];
+              Shortest Path:
+              {result?.path ? (
+                result.path.map((node, index) => {
+                  const [title, link] = Object.entries(node)[0];
 
-                return (
-                  <span key={index} style={styles.pathItem}>
-                    <a
-                      href={link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={styles.link}
-                    >
-                      {title}
-                    </a>
-                    {index < result.path.length - 1 && (
-                      <span style={styles.arrow}>→</span>
-                    )}
-                  </span>
-                );
-              })}
+                  return (
+                    <span key={index} style={styles.pathItem}>
+                      <a
+                        href={link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={styles.link}
+                      >
+                        {title}
+                      </a>
+                      {index < result.path.length - 1 && (
+                        <span style={styles.arrow}>→</span>
+                      )}
+                    </span>
+                  );
+                })
+              ) : (
+                <span style={styles.calculating}> Calculating…</span>
+              )}
             </div>
 
+            {/* TIME */}
             <p style={styles.steps}>
-              Steps: <strong>{result.steps}</strong>
+              Search Time: 
+              { result?.timeTaken?.formatted ? (
+                  <strong> {result.timeTaken.formatted}</strong>
+                ): (
+                  <span style={styles.calculating}> Calculating…</span>
+                )
+            }
             </p>
 
+           {/* LINKS EXPANDED */}
             <p style={styles.steps}>
-              Search Time: <strong>{result.timeTaken.formatted}</strong>
-            </p>
-
-            <p style={styles.steps}>
-              Total Links Expanded: <strong>{result.totalLinksExpanded}</strong>
+              Total Links Expanded:{" "}
+              <strong>
+                {result?.totalLinksExpanded ?? 0}
+                {/* {!result?.path && "+"} */}
+              </strong>
             </p>
           </div>
         )}
@@ -204,6 +232,12 @@ const styles = {
   steps: {
     marginTop: "12px",
     color: "#ccc",
+  },
+
+  calculating: {
+    color: "#9ca3af",      // soft gray
+    fontStyle: "italic",
+    opacity: 0.75,
   },
 };
 

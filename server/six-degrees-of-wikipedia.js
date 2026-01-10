@@ -24,7 +24,7 @@ const fetchWikiLinks = async (articleTitle) => {
     return [...links];
 };
 
-const sixDegreesOfWikipediaUsingBFS = async (startArticle, targetArticle) => {
+const sixDegreesOfWikipediaUsingBFS = async (startArticle, targetArticle, onProgress = null) => {
     
     const parentMap = {}; // contains parent of each link/node.
     const depthMap = {}; // contains depth count of each link/node.
@@ -70,6 +70,12 @@ const sixDegreesOfWikipediaUsingBFS = async (startArticle, targetArticle) => {
       const articleList = await fetchWikiLinks(currentArticle);
       totalLinksExpanded+=1;
 
+      if(onProgress) {
+        onProgress?.({
+          totalLinksExpanded
+        })
+      }
+
       for (const article of articleList) {
         if(visitedSet.has(article)){
           continue;
@@ -80,7 +86,7 @@ const sixDegreesOfWikipediaUsingBFS = async (startArticle, targetArticle) => {
         depthMap[article] = depthMap[currentArticle] + 1; // set depth.
 
         if (article === targetArticle) {
-          const path = backTrackToStart(article, [article]);
+          const path = backTrackToStart(article);
           return { path, totalLinksExpanded }
         }
         
