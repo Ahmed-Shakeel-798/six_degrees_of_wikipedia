@@ -51,6 +51,23 @@ function App() {
     };
   }
 
+  function cancelSearch() {
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
+
+    setLoading(false);
+
+    setResult((prev) => ({
+      ...prev,
+      cancelled: true,
+      // keep totalLinksExpanded as is
+      // remove formatted time so it uses Calculating style
+      timeTaken: prev?.timeTaken ? prev.timeTaken : undefined,
+    }));
+  }
+
   return (
     <div style={styles.page}>
       <div style={styles.card}>
@@ -73,6 +90,17 @@ function App() {
           <button style={styles.button} disabled={loading}>
             {loading ? "Searching..." : "Submit"}
           </button>
+
+          {/* Cancel button */}
+            {loading && (
+              <button
+                type="button"
+                onClick={cancelSearch}
+                style={styles.cancelButton}
+              >
+                Cancel
+              </button>
+            )}
         </form>
 
         {loading && <p style={styles.muted}>⏳ Searching Wikipedia…</p>}
@@ -84,10 +112,9 @@ function App() {
             {/* PATH */}
             <div style={styles.path}>
               Shortest Path:
-              {result?.path ? (
+              {result?.path && result.path.length > 0 ? (
                 result.path.map((node, index) => {
                   const [title, link] = Object.entries(node)[0];
-
                   return (
                     <span key={index} style={styles.pathItem}>
                       <a
@@ -104,28 +131,30 @@ function App() {
                     </span>
                   );
                 })
+              ) : result?.cancelled ? (
+                <span style={styles.calculating}>Cancelled</span>
               ) : (
-                <span style={styles.calculating}> Calculating…</span>
+                <span style={styles.calculating}>Calculating…</span>
               )}
             </div>
 
             {/* TIME */}
             <p style={styles.steps}>
-              Search Time: 
-              { result?.timeTaken?.formatted ? (
-                  <strong> {result.timeTaken.formatted}</strong>
-                ): (
-                  <span style={styles.calculating}> Calculating…</span>
-                )
-            }
+              Search Time:{" "}
+              {result?.timeTaken?.formatted ? (
+                <strong>{result.timeTaken.formatted}</strong>
+              ) : (
+                <span style={styles.calculating}>
+                  {result?.cancelled ? "Cancelled" : "Calculating…"}
+                </span>
+              )}
             </p>
 
-           {/* LINKS EXPANDED */}
+            {/* LINKS EXPANDED */}
             <p style={styles.steps}>
               Total Links Expanded:{" "}
               <strong>
                 {result?.totalLinksExpanded ?? 0}
-                {/* {!result?.path && "+"} */}
               </strong>
             </p>
           </div>
@@ -238,6 +267,16 @@ const styles = {
     color: "#9ca3af",      // soft gray
     fontStyle: "italic",
     opacity: 0.75,
+  },
+
+  cancelButton: {
+    padding: "12px",
+    fontSize: "16px",
+    borderRadius: "6px",
+    border: "1px solid #555",
+    background: "#1f2937",
+    color: "#e5e7eb",
+    cursor: "pointer",
   },
 };
 

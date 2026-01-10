@@ -27,12 +27,17 @@ app.post("/api/search", async (req, res) => {
 });
 
 app.get("/api/search/stream", async (req, res) => {
+  const cancelSignal = { cancelled: false };
+
+  req.on("close", () => {
+    cancelSignal.cancelled = true;
+  });
+
   const { startArticle, targetArticle } = req.query;
 
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
-
   res.flushHeaders();
 
   const send = (data) => {
@@ -49,17 +54,18 @@ app.get("/api/search/stream", async (req, res) => {
       normalizeTitle(targetArticle),
       (progress) => {
         send({ status: "progress", ...progress });
-      }
+      },
+      cancelSignal
     );
 
     const endTime = process.hrtime.bigint();
-    const duration = formatDuration(endTime - startTime);
+    const timeTaken = formatDuration(endTime - startTime);
 
-    send({
-      status: "done",
-      ...result,
-      timeTaken: duration,
-    });
+    if (result.cancelled) {
+      send({ status: "cancelled", totalLinksExpanded: result.totalLinksExpanded });
+    } else {
+      send({ status: "done", ...result, timeTaken});
+    }
   } catch (err) {
     send({ status: "error", message: err.message });
   } finally {
