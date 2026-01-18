@@ -1,4 +1,4 @@
-import { isValidWikiLink } from "./utils.js";
+import { isValidWikiLink } from "../utils.js";
 
 const WIKI_BASE = "https://en.wikipedia.org/wiki/";
 

@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 import { normalizeTitle, formatDuration } from "./utils.js"
-import { sixDegreesOfWikipediaUsingBFS }  from "./six-degrees-of-wikipedia.js";
+import { sixDegreesOfWikipediaUsingBFS }  from "./services/six-degrees-of-wikipedia.js";
 
 const app = express();
 app.use(cors());

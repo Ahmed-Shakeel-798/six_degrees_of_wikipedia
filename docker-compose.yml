@@ -1,0 +1,25 @@
+version: "3.9"
+
+services:
+  server:
+    build: ./server
+    container_name: wiki_api
+    ports:
+      - "3000:3000"
+    environment:
+      # SQLite file path INSIDE container
+      DATABASE_URL: file:/data/wiki.db
+      NODE_ENV: production
+    volumes:
+      # Persist SQLite DB on host
+      - ./data:/data
+    restart: unless-stopped
+
+  web:
+    build: ./web
+    container_name: wiki_web
+    ports:
+      - "5173:80"
+    depends_on:
+      - server
+    restart: unless-stopped

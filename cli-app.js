@@ -1,7 +1,7 @@
 import readline from "readline";
 
 import { normalizeTitle, formatDuration } from "./server/utils.js"
-import { sixDegreesOfWikipediaUsingBFS }  from "./server/six-degrees-of-wikipedia.js";
+import { sixDegreesOfWikipediaUsingBFS }  from "./server/services/six-degrees-of-wikipedia.js";
 
 const rl = readline.createInterface({
   input: process.stdin,
