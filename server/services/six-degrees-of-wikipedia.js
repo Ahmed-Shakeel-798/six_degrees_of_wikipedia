@@ -1,6 +1,8 @@
-import { isValidWikiLink } from "../utils.js";
+import { isValidWikiLink } from "../utils/utils.js";
+import ArticleDB from "./db.js";
 
 const WIKI_BASE = "https://en.wikipedia.org/wiki/";
+const db = ArticleDB.getInstance();
 
 const fetchWikiLinks = async (articleTitle) => {
     const url = `${WIKI_BASE}${articleTitle.replace(/ /g, "_")}`;
@@ -69,8 +71,14 @@ const sixDegreesOfWikipediaUsingBFS = async (startArticle, targetArticle, onProg
       if(depthMap[currentArticle] === 6) {
         continue;
       }
-      
-      const articleList = await fetchWikiLinks(currentArticle);
+
+      let articleList = db.getLinks(currentArticle);
+
+      if(articleList.length <= 0) {
+        articleList = await fetchWikiLinks(currentArticle);
+        db.insertLinks(currentArticle, articleList);
+      }
+
       totalLinksExpanded+=1;
 
       if(onProgress) {

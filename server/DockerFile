@@ -1,12 +1,25 @@
+# server/Dockerfile
 FROM node:20-alpine
 
+# Install build tools for better-sqlite3
+RUN apk add --no-cache python3 make g++
+
+# Set working directory
 WORKDIR /app
 
-COPY package*.json ./
-RUN npm ci --omit=dev
+# Ensure data folder exists
+RUN mkdir -p /data
 
+# Copy package files and install dependencies
+COPY package*.json ./
+ENV NODE_ENV=production
+RUN npm install --build-from-source
+
+# Copy app source
 COPY . .
 
+# Expose port
 EXPOSE 3000
 
+# Start server
 CMD ["node", "server.js"]
