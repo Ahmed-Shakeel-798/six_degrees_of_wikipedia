@@ -31,4 +31,32 @@ const formatDuration = (durationNs) => {
     };
 }
 
-export { normalizeTitle, isValidWikiLink, formatDuration };
+const backTrackToStart = (article, parentMap) => {
+    const path = [];
+
+    while (article) {
+        path.push({
+            [article]: "https://en.wikipedia.org/wiki/" + article
+        });
+
+        article = parentMap[article];
+    }
+
+     return path.reverse();
+}
+
+const heuristicFunction = (articleTitle, targetLinks) => {
+  let score = 0;
+
+  // H1: direct overlap with target
+  if (targetLinks.has(articleTitle)) {
+    score += 1000; // very strong signal
+  }
+
+  // more heuristics later
+
+  return score;
+}
+
+
+export { normalizeTitle, isValidWikiLink, formatDuration, backTrackToStart, heuristicFunction };

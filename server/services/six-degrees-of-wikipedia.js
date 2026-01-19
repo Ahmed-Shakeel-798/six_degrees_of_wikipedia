@@ -1,5 +1,6 @@
-import { isValidWikiLink } from "../utils/utils.js";
+import { isValidWikiLink, backTrackToStart, heuristicFunction } from "../utils/utils.js";
 import ArticleDB from "./db.js";
+import PriorityQueue from "./priority-queue.js";
 
 const WIKI_BASE = "https://en.wikipedia.org/wiki/";
 const db = ArticleDB.getInstance();
@@ -28,52 +29,55 @@ const fetchWikiLinks = async (articleTitle) => {
 
 const sixDegreesOfWikipediaUsingBFS = async (startArticle, targetArticle, onProgress = null, cancelSignal = { cancelled: false }) => {
     
-    const parentMap = {}; // contains parent of each link/node.
-    const depthMap = {}; // contains depth count of each link/node.
-    
+    /**
+     * fetch target article's links, used for calculating heuristic
+     */
+    let targetArticleArray = db.getLinks(targetArticle);
+    if(targetArticleArray.length <= 0) {
+      targetArticleArray = await fetchWikiLinks(targetArticle);
+      db.insertLinks(targetArticle, targetArticleArray);
+    }
+    const targetArticleLinks = new Set(targetArticleArray);
+
+    const linkQueue = new PriorityQueue;
     const visitedSet = new Set([startArticle]); // contains a set of all visited links/nodes. 
-    const linkQueue = [startArticle]; // contains.
+    const parentMap = {}; // contains parent of each link/node.
 
-    depthMap[startArticle] = 0;
     parentMap[startArticle] = null;
-
+    
     let totalLinksExpanded = 0;
 
-    const backTrackToStart = (article) => {
-        const path = [];
-
-        while (article) {
-            path.push({
-                [article]: "https://en.wikipedia.org/wiki/" + article
-            });
-
-            article = parentMap[article];
-        }
-
-        return path.reverse();
-    }
+    linkQueue.push({
+      article: startArticle,
+      depth: 0,
+      heuristic: 0
+    });
 
     while (linkQueue.length > 0) {
       if (cancelSignal.cancelled) {
         return { path: [], totalLinksExpanded, cancelled: true };
       }
       
-      const currentArticle = linkQueue.shift();
+      const { article: currentArticle, depth, heuristic } = linkQueue.shift();
 
-      console.log('sixDegreesOfWikipediaUsingBFS > current article > ' + currentArticle);
+      console.log('sixDegreesOfWikipediaUsingBFS > level: ' + depth + ' | heuristic: ' + heuristic + ' | current article > ' + currentArticle);
        
+      /**
+       * If match, reconstruct and return
+       */
       if(currentArticle == targetArticle){
-        // reconstuct path to parent and return
-        const path = backTrackToStart(currentArticle);
+        const path = backTrackToStart(currentArticle, parentMap);
         return { path, totalLinksExpanded }
       }
 
-      if(depthMap[currentArticle] === 6) {
+      if(depth === 6) {
         continue;
       }
 
+      /**
+       * fetch links of the current article
+       */
       let articleList = db.getLinks(currentArticle);
-
       if(articleList.length <= 0) {
         articleList = await fetchWikiLinks(currentArticle);
         db.insertLinks(currentArticle, articleList);
@@ -81,6 +85,9 @@ const sixDegreesOfWikipediaUsingBFS = async (startArticle, targetArticle, onProg
 
       totalLinksExpanded+=1;
 
+      /**
+       * Send updates to FE
+       */
       if(onProgress) {
         onProgress?.({
           totalLinksExpanded
@@ -92,20 +99,23 @@ const sixDegreesOfWikipediaUsingBFS = async (startArticle, targetArticle, onProg
           return { path: [], totalLinksExpanded, cancelled: true };
         }
 
-        if(visitedSet.has(article)){
-          continue;
-        }
+        if (visitedSet.has(article)) continue;
 
         visitedSet.add(article); // mark visited
         parentMap[article] = currentArticle // set parent
-        depthMap[article] = depthMap[currentArticle] + 1; // set depth.
 
         if (article === targetArticle) {
-          const path = backTrackToStart(article);
+          const path = backTrackToStart(article, parentMap);
           return { path, totalLinksExpanded }
         }
-        
-        linkQueue.push(article);
+
+        const heuristicValue = heuristicFunction(article, targetArticleLinks);
+
+        linkQueue.push({
+          article,
+          depth: depth + 1,
+          heuristic: heuristicValue
+        });
       }
     }
 
