@@ -1,13 +1,15 @@
 class PriorityQueue {
-  constructor() {
+
+  constructor(ignoreDepth = false) {
     this.items = [];
+    this.ignoreDepth = ignoreDepth
   }
 
   push(node) {
     /**
-     * If no heuristic value, just push into the array
+     * If no priority value, just push into the array
      */
-    if(node.heuristic === 0) {
+    if(node.priority === 0) {
         this.items.push(node);
         return;     
     }
@@ -37,10 +39,13 @@ class PriorityQueue {
   }
 
   compare(a, b) {
-    if (a.depth !== b.depth) return a.depth - b.depth; // BFS preserved
-    return b.heuristic - a.heuristic; // within depth, higher heuristic first
+    if(!this.ignoreDepth) {
+      if (a.depth !== b.depth) return a.depth - b.depth; // BFS preserved
+      return b.priority - a.priority; // within depth, higher heuristic first
+    }
+
+    return b.priority - a.priority;
   }
 }
-
 
 export default PriorityQueue;

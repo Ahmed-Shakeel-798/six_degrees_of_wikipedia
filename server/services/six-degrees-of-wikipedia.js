@@ -1,4 +1,4 @@
-import { isValidWikiLink, backTrackToStart, heuristicFunction } from "../utils/utils.js";
+import { isValidWikiLink, backTrackToStart } from "../utils/utils.js";
 import ArticleDB from "./db.js";
 import PriorityQueue from "./priority-queue.js";
 
@@ -30,7 +30,7 @@ const fetchWikiLinks = async (articleTitle) => {
 const sixDegreesOfWikipediaUsingBFS = async (startArticle, targetArticle, onProgress = null, cancelSignal = { cancelled: false }) => {
     
     /**
-     * fetch target article's links, used for calculating heuristic
+     * fetch target article's links, used for calculating priority
      */
     let targetArticleArray = db.getLinks(targetArticle);
     if(targetArticleArray.length <= 0) {
@@ -39,7 +39,7 @@ const sixDegreesOfWikipediaUsingBFS = async (startArticle, targetArticle, onProg
     }
     const targetArticleLinks = new Set(targetArticleArray);
 
-    const linkQueue = new PriorityQueue;
+    const linkQueue = new PriorityQueue(true);
     const visitedSet = new Set([startArticle]); // contains a set of all visited links/nodes. 
     const parentMap = {}; // contains parent of each link/node.
 
@@ -50,7 +50,7 @@ const sixDegreesOfWikipediaUsingBFS = async (startArticle, targetArticle, onProg
     linkQueue.push({
       article: startArticle,
       depth: 0,
-      heuristic: 0
+      priority: 0
     });
 
     while (linkQueue.length > 0) {
@@ -58,9 +58,9 @@ const sixDegreesOfWikipediaUsingBFS = async (startArticle, targetArticle, onProg
         return { path: [], totalLinksExpanded, cancelled: true };
       }
       
-      const { article: currentArticle, depth, heuristic } = linkQueue.shift();
+      const { article: currentArticle, depth, priority } = linkQueue.shift();
 
-      console.log('sixDegreesOfWikipediaUsingBFS > level: ' + depth + ' | heuristic: ' + heuristic + ' | current article > ' + currentArticle);
+      console.log('sixDegreesOfWikipediaUsingBFS > level: ' + depth + ' | priority: ' + priority + ' | current article > ' + currentArticle);
        
       /**
        * If match, reconstruct and return
@@ -109,12 +109,10 @@ const sixDegreesOfWikipediaUsingBFS = async (startArticle, targetArticle, onProg
           return { path, totalLinksExpanded }
         }
 
-        const heuristicValue = heuristicFunction(article, targetArticleLinks);
-
         linkQueue.push({
           article,
           depth: depth + 1,
-          heuristic: heuristicValue
+          priority: targetArticleLinks.has(article) ? 1 : 0
         });
       }
     }

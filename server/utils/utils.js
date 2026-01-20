@@ -45,18 +45,4 @@ const backTrackToStart = (article, parentMap) => {
      return path.reverse();
 }
 
-const heuristicFunction = (articleTitle, targetLinks) => {
-  let score = 0;
-
-  // H1: direct overlap with target
-  if (targetLinks.has(articleTitle)) {
-    score += 1000; // very strong signal
-  }
-
-  // more heuristics later
-
-  return score;
-}
-
-
-export { normalizeTitle, isValidWikiLink, formatDuration, backTrackToStart, heuristicFunction };
+export { normalizeTitle, isValidWikiLink, formatDuration, backTrackToStart };
