@@ -1,13 +1,15 @@
 {
-  "name": "6_degrees_of_wikipedia",
+  "name": "six-degrees-worker",
   "version": "1.0.0",
-  "main": "index.js",
-  "type": "module",
+  "main": "redis-test.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": ""
+  "description": "",
+  "dependencies": {
+    "ioredis": "^5.9.2"
+  }
 }
