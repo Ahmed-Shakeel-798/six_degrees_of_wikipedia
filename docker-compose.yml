@@ -1,18 +1,30 @@
 version: "3.9"
 
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: sixdeg-redis
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+
   server:
     build: ./server
     container_name: wiki_api
     ports:
       - "3000:3000"
     environment:
-      # SQLite file path INSIDE container
       DATABASE_URL: file:/data/wiki.db
       NODE_ENV: production
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     volumes:
-      # Persist SQLite DB on host
       - ./data:/data
+    depends_on:
+      - redis
     restart: unless-stopped
 
   web:
@@ -23,3 +35,16 @@ services:
     depends_on:
       - server
     restart: unless-stopped
+
+  worker:
+    build: ./six-degrees-worker
+    container_name: wiki-worker
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+volumes:
+  redis-data:

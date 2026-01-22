@@ -6,4 +6,8 @@
 /server/.env
 /server/data
 
+/six-degrees-worker/node_modules
+/six-degrees-worker/package-lock.json
+/six-degrees-worker/redis/node_modules
+
 /data
