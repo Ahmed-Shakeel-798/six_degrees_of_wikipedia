@@ -157,6 +157,13 @@ function App() {
                 {result?.totalLinksExpanded ?? 0}
               </strong>
             </p>
+
+            <p style={styles.steps}>
+              Frontier Size:{" "}
+              <strong>
+                {result?.frontierSize ?? 0}
+              </strong>
+            </p>
           </div>
         )}
       </div>

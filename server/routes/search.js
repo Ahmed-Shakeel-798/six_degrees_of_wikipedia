@@ -1,12 +1,8 @@
 import express from "express";
-import { search, searchStream } from "../controllers/search-controller.js";
+import { searchStream } from "../controllers/search_controller.js";
 
 const router = express.Router();
 
-// POST /api/search
-router.post("/", search);
-
-// GET /api/search/stream
 router.get("/stream", searchStream);
 
 export default router;
