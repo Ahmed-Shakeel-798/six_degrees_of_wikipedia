@@ -44,10 +44,10 @@ async function runBFS({ jobId, startArticle, targetArticle }) {
       return;
     }
 
-    console.log(`runBFS => current article: ${currentArticle}`);
-
     const depth = Number(await redis.hget(depthKey, currentArticle));
     if (depth >= 6) continue;
+
+    console.log(`runBFS => job: ${jobId} | depth: ${depth} | expanding: ${currentArticle}`);
 
     const links = await expandNode(currentArticle);
     

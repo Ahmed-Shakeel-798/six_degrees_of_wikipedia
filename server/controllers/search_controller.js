@@ -27,7 +27,6 @@ export async function searchStream(req, res) {
   req.on("close", async () => {
     console.log(`searchStream: job ${jobId} cancelled by client`);
     await redis.set(`sixdeg:${jobId}:cancelled`, "1");
-    await cleanup();
   });
 
   const startTime = process.hrtime.bigint();
@@ -38,7 +37,7 @@ export async function searchStream(req, res) {
 
   const channel = `sixdeg:events:${jobId}`;
 
-  const messageHandler = async (_, msg) => {
+  const messageHandler = async (msg) => {
     if (res.writableEnded) return;
 
     let event;
@@ -80,5 +79,10 @@ export async function searchStream(req, res) {
   };
 
   await sub.subscribe(channel);
-  sub.on("message", messageHandler);
+  sub.on("message", (ch, msg) => {
+    if(ch !== channel){
+      return;
+    }
+    messageHandler(msg);
+  });
 }
