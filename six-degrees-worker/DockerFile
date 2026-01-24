@@ -10,4 +10,4 @@ RUN npm install --build-from-source
 
 COPY . .
 
-CMD ["node", "six-degrees-worker.js"]
+CMD ["node", "six_degrees_worker.js"]

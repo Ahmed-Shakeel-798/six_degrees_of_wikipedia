@@ -3,11 +3,11 @@
 
 /server/node_modules
 /server/package-lock.json
-/server/.env
 /server/data
 
 /six-degrees-worker/node_modules
 /six-degrees-worker/package-lock.json
 /six-degrees-worker/redis/node_modules
+/six-degrees-worker/.env
 
 /data

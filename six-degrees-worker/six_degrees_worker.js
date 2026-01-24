@@ -1,5 +1,8 @@
 import { fetchWikiLinks } from "./wiki.js";
+import ArticleDB from "./db.js";
 import redis from "./redis/redis.js";
+
+const db = ArticleDB.getInstance();
 
 async function runWorker() {
   console.log("Worker started, waiting for jobs...");
@@ -46,8 +49,8 @@ async function runBFS({ jobId, startArticle, targetArticle }) {
     const depth = Number(await redis.hget(depthKey, currentArticle));
     if (depth >= 6) continue;
 
-    const links = await fetchWikiLinks(currentArticle);
-
+    const links = await expandNode(currentArticle);
+    
     let expanded = await redis.hincrby(statsKey, "totalLinksExpanded", 1);
 
     for (const article of links) {
@@ -76,6 +79,19 @@ async function runBFS({ jobId, startArticle, targetArticle }) {
       );
     }
   }
+}
+
+/**
+ * fetch links of the current article/node
+ */
+async function expandNode(currentArticle) {
+  let links = db.getLinks(currentArticle);
+  if(links.length <= 0) {
+    links = await fetchWikiLinks(currentArticle);
+    db.insertLinks(currentArticle, links);
+  }
+
+  return links;
 }
 
 runWorker().catch(console.error);
