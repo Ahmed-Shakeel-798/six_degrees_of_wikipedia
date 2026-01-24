@@ -48,7 +48,7 @@ async function runBFS({ jobId, startArticle, targetArticle }) {
 
     const links = await fetchWikiLinks(currentArticle);
 
-    let expanded = await redis.hincrby(statsKey, "totalExpanded", 1);
+    let expanded = await redis.hincrby(statsKey, "totalLinksExpanded", 1);
 
     for (const article of links) {
       if (await redis.sismember(visitedKey, article)) continue;
@@ -62,16 +62,17 @@ async function runBFS({ jobId, startArticle, targetArticle }) {
 
       if (article === targetArticle) {
         await redis.set(`sixdeg:${jobId}:found`, article);
-        await redis.publish(channel, JSON.stringify({ type: "found" }));
+        const frontierSize = await redis.llen(frontierKey);
+        await redis.publish(channel, JSON.stringify({ type: "found", totalLinksExpanded: expanded, frontierSize }));
         return;
       }
     }
 
-    if (expanded % 50 === 0) {
+    if (expanded % 2 === 0) {
       const frontierSize = await redis.llen(frontierKey);
       await redis.publish(
         channel,
-        JSON.stringify({ type: "progress", totalExpanded: expanded, frontierSize })
+        JSON.stringify({ type: "progress", totalLinksExpanded: expanded, frontierSize })
       );
     }
   }
