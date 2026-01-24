@@ -18,14 +18,12 @@ export async function searchStream(req, res) {
     if (!res.writableEnded) res.write(`data: ${JSON.stringify(data)}\n\n`);
   };
 
-  // --- Cleanup function ---
   async function cleanup() {
     sub.removeListener("message", messageHandler);
     await sub.unsubscribe(`sixdeg:events:${jobId}`);
     await cleanupJob(jobId);
   }
 
-  // Handle client disconnect
   req.on("close", async () => {
     console.log(`searchStream: job ${jobId} cancelled by client`);
     await redis.set(`sixdeg:${jobId}:cancelled`, "1");

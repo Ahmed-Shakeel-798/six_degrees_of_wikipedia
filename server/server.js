@@ -3,9 +3,6 @@ import cors from "cors";
 import 'dotenv/config';
 
 import searchRoutes from "./routes/search.js";
-import ArticleDB from "./services/db.js";
-
-ArticleDB.getInstance();
 
 const app = express();
 app.use(cors());
