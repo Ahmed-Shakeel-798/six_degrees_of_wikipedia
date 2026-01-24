@@ -35,7 +35,7 @@ services:
 
   worker:
     build: ./six-degrees-worker
-    container_name: wiki-worker
+    # container_name: wiki-worker
     environment:
       REDIS_HOST: redis
       REDIS_PORT: 6379
