@@ -6,9 +6,7 @@ services:
     container_name: sixdeg-redis
     ports:
       - "6379:6379"
-    command: ["redis-server", "--appendonly", "yes"]
-    volumes:
-      - redis-data:/data
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
     restart: unless-stopped
 
   server:
@@ -45,6 +43,3 @@ services:
     depends_on:
       - redis
     restart: unless-stopped
-
-volumes:
-  redis-data:

@@ -8,9 +8,8 @@ redis.call("DEL",
   prefix .. "depth",
   prefix .. "frontier",
   prefix .. "stats",
-  prefix .. "cancelled",
-  prefix .. "found",
-  prefix .. "done"
+  prefix .. "alive",
+  prefix .. "initialized"
 )
 
 return 1

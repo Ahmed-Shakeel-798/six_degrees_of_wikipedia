@@ -25,17 +25,49 @@ export async function searchStream(req, res) {
   }
 
   req.on("close", async () => {
-    console.log(`searchStream: job ${jobId} cancelled by client`);
-    await redis.set(`sixdeg:${jobId}:cancelled`, "1");
+    console.log(`searchStream => job ${jobId} | connection ended by client.`);
+    await redis.del(`sixdeg:${jobId}:alive`);
+    await cleanupJob(jobId);
+  });
+
+  const channel = `sixdeg:events:${jobId}`;
+
+  await sub.subscribe(channel);
+  sub.on("message", (ch, msg) => {
+    if (ch !== channel) return;
+    messageHandler(msg);
   });
 
   const startTime = process.hrtime.bigint();
-  // Enqueue job
-  await redis.lpush("sixdeg:queue", JSON.stringify({ jobId, startArticle, targetArticle }));
+
+  const numWorkers = 3;
+  const assignedWorkers = [];
+
+  for (let i = 0; i < numWorkers; i++) {
+    const workerGuid = await redis.rpop("sixdeg:availableWorkers");
+    if (workerGuid) {
+      assignedWorkers.push(workerGuid);
+    }
+  }
+
+  if (assignedWorkers.length === 0) {
+    send({ status: "worker_unavailable" });
+    res.end();
+  } else {
+    console.log(`searchStream => Assigning job ${jobId} to workers ${assignedWorkers.join(", ")}`);
+
+    let timeout = 0;
+    // mark job alive once per worker
+    for (const workerGuid of assignedWorkers) {
+      setTimeout(async () => {
+        await redis.set(`sixdeg:${jobId}:alive`, 1);
+        await redis.lpush(`sixdeg:worker:${workerGuid}`, JSON.stringify({ task: "start", data: { jobId, startArticle, targetArticle },}));
+      }, timeout);
+      timeout += 2000;
+    }
+  }
 
   send({ status: "started", jobId });
-
-  const channel = `sixdeg:events:${jobId}`;
 
   const messageHandler = async (msg) => {
     if (res.writableEnded) return;
@@ -51,13 +83,19 @@ export async function searchStream(req, res) {
     if (event.type === "progress") send({ status: "progress", ...event });
 
     if (event.type === "found") {
-      console.log(`searchStream: job ${jobId} found target; reconstructing path...`);
+      console.log(`searchStream => job ${jobId} | found target.`);
       const path = await reconstructPath(jobId, startArticle, targetArticle);
 
       const endTime = process.hrtime.bigint();
       const duration = formatDuration(endTime - startTime);
 
-      send({ status: "done", path, timeTaken: duration, totalLinksExpanded: event.totalLinksExpanded ?? 0, frontierSize: event.frontierSize });
+      send({
+        status: "done",
+        path,
+        timeTaken: duration,
+        totalLinksExpanded: event.totalLinksExpanded ?? 0,
+        frontierSize: event.frontierSize,
+      });
       await cleanup();
       res.end();
     }
@@ -72,17 +110,15 @@ export async function searchStream(req, res) {
       const endTime = process.hrtime.bigint();
       const duration = formatDuration(endTime - startTime);
 
-      send({ status: "done", path: [], timeTaken: duration, totalLinksExpanded: event.totalLinksExpanded ?? 0, frontierSize: event.frontierSize });
+      send({
+        status: "done",
+        path: [],
+        timeTaken: duration,
+        totalLinksExpanded: event.totalLinksExpanded ?? 0,
+        frontierSize: event.frontierSize,
+      });
       await cleanup();
       res.end();
     }
   };
-
-  await sub.subscribe(channel);
-  sub.on("message", (ch, msg) => {
-    if(ch !== channel){
-      return;
-    }
-    messageHandler(msg);
-  });
 }
