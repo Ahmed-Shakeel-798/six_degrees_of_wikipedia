@@ -12,6 +12,7 @@
   "description": "",
   "dependencies": {
     "better-sqlite3": "^12.6.2",
-    "ioredis": "^5.9.2"
+    "ioredis": "^5.9.2",
+    "uuid": "^13.0.0"
   }
 }

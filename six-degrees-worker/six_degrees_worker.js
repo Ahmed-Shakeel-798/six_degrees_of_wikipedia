@@ -1,72 +1,92 @@
 import { fetchWikiLinks } from "./wiki.js";
 import ArticleDB from "./db.js";
 import redis from "./redis/redis.js";
+import { v4 as uuidv4 } from "uuid";
 
 const db = ArticleDB.getInstance();
 
+let localJobId = null;
+let aliveKey, initializedKey, frontierKey, visitedKey, parentKey, depthKey, statsKey, channel;
+
+const workerGuid = uuidv4(); // unique worker ID
+const workerChannel = `sixdeg:worker:${workerGuid}`;
+
+/**
+ * Initialize worker: inform server of availability
+ */
 async function runWorker() {
-  console.log("Worker started, waiting for jobs...");
-
+  console.log(`Worker ${workerGuid} started.`);
   while (true) {
-    const [, jobRaw] = await redis.brpop("sixdeg:queue", 0);
-    const job = JSON.parse(jobRaw);
+    // Inform server that this worker is available
+    await redis.lpush("sixdeg:availableWorkers", workerGuid);
 
-    await runBFS(job);
+    // Wait for a task
+    const [, itemRaw] = await redis.brpop(workerChannel, 0); // blocking pop
+    const item = JSON.parse(itemRaw);
+
+    console.log(`runWorker => worker: ${workerGuid} | item: ${JSON.stringify(item)}`);
+
+    if(item.task === "start") {
+      localJobId = item.data.jobId;
+      updateJobKeys(localJobId);
+      const { startArticle, targetArticle } = item.data;
+      await runBFS(startArticle, targetArticle);
+    }
+
+    /**
+     * cleanup
+     */
+    localJobId = null;
+    updateJobKeys(null);
   }
 }
 
-async function runBFS({ jobId, startArticle, targetArticle }) {
-  const frontierKey = `sixdeg:${jobId}:frontier`;
-  const visitedKey = `sixdeg:${jobId}:visited`;
-  const parentKey = `sixdeg:${jobId}:parent`;
-  const depthKey = `sixdeg:${jobId}:depth`;
-  const statsKey = `sixdeg:${jobId}:stats`;
-  const cancelKey = `sixdeg:${jobId}:cancelled`;
-  const channel = `sixdeg:events:${jobId}`;
+/**
+ * Process a single node of BFS for a job
+ */
+async function runBFS(startArticle, targetArticle) {
+  const pushed = await redis.initJobData( aliveKey, initializedKey, visitedKey, parentKey, depthKey, frontierKey, statsKey, startArticle );
+  if(pushed){
+    console.log(`runBFS => ${localJobId} | worker: ${workerGuid} | initialized.`);
+    await redis.multi()
+      .sadd(visitedKey, startArticle)
+      .hset(parentKey, startArticle, "")
+      .hset(depthKey, startArticle, 0)
+      .lpush(frontierKey, startArticle)
+      .hset(statsKey, "totalExpanded", 0)
+      .exec();
+  }else{
+    console.log(`runBFS => ${localJobId} | worker: ${workerGuid} | not initialized.`);
+  }
 
-  await redis.multi()
-    .sadd(visitedKey, startArticle)
-    .hset(parentKey, startArticle, "")
-    .hset(depthKey, startArticle, 0)
-    .lpush(frontierKey, startArticle)
-    .hset(statsKey, "totalExpanded", 0)
-    .exec();
+  while(true) {
+    const res = await redis.popFrontier(aliveKey, frontierKey, depthKey, statsKey);
+    if (!res) return;
 
-  while (true) {
-    if (await redis.exists(cancelKey)) {
-      await redis.publish(channel, JSON.stringify({ type: "cancelled" }));
-      return;
-    }
+    const [currentArticle, depth, expanded] = res;
+    if (Number(depth) >= 6) continue;
 
-    const currentArticle = await redis.rpop(frontierKey);
-    if (!currentArticle) {
-      await redis.publish(channel, JSON.stringify({ type: "done" }));
-      return;
-    }
-
-    const depth = Number(await redis.hget(depthKey, currentArticle));
-    if (depth >= 6) continue;
-
-    console.log(`runBFS => job: ${jobId} | depth: ${depth} | expanding: ${currentArticle}`);
+    console.log(`runBFS => job: ${localJobId} | worker: ${workerGuid} | depth: ${depth} | expanding: ${currentArticle}`);
 
     const links = await expandNode(currentArticle);
-    
-    let expanded = await redis.hincrby(statsKey, "totalLinksExpanded", 1);
 
     for (const article of links) {
-      if (await redis.sismember(visitedKey, article)) continue;
+      const pushed = await redis.pushJobData(
+        aliveKey,
+        visitedKey,
+        parentKey,
+        depthKey,
+        frontierKey,
+        article,
+        currentArticle,
+        Number(depth) + 1
+      );
 
-      await redis.multi()
-        .sadd(visitedKey, article)
-        .hset(parentKey, article, currentArticle)
-        .hset(depthKey, article, depth + 1)
-        .lpush(frontierKey, article)
-        .exec();
+      if (!pushed) continue;
 
       if (article === targetArticle) {
-        await redis.set(`sixdeg:${jobId}:found`, article);
         const frontierSize = await redis.llen(frontierKey);
-        await redis.publish(channel, JSON.stringify({ type: "found", totalLinksExpanded: expanded, frontierSize }));
+        await redis.publish(channel, JSON.stringify({type: "found", totalLinksExpanded: expanded, frontierSize}));
         return;
       }
     }
@@ -82,16 +102,35 @@ async function runBFS({ jobId, startArticle, targetArticle }) {
 }
 
 /**
- * fetch links of the current article/node
+ * Fetch links, either from local DB or live API
  */
-async function expandNode(currentArticle) {
-  let links = db.getLinks(currentArticle);
-  if(links.length <= 0) {
-    links = await fetchWikiLinks(currentArticle);
-    db.insertLinks(currentArticle, links);
+async function expandNode(article) {
+  let links = db.getLinks(article);
+  if (!links || links.length === 0) {
+    links = await fetchWikiLinks(article);
+    db.insertLinks(article, links);
   }
-
   return links;
 }
 
+/**
+ * Update Redis keys for a given job
+ */
+function updateJobKeys(jobId) {
+  if (!jobId) {
+     aliveKey = initializedKey = frontierKey = visitedKey = parentKey = depthKey = statsKey = channel = null;
+    return;
+  }
+
+  aliveKey = `sixdeg:${jobId}:alive`;
+  initializedKey = `sixdeg:${jobId}:initialized`
+  frontierKey = `sixdeg:${jobId}:frontier`;
+  visitedKey = `sixdeg:${jobId}:visited`;
+  parentKey = `sixdeg:${jobId}:parent`;
+  depthKey = `sixdeg:${jobId}:depth`;
+  statsKey = `sixdeg:${jobId}:stats`;
+  channel = `sixdeg:events:${jobId}`;
+}
+
+// Start the worker
 runWorker().catch(console.error);

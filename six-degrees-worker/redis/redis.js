@@ -1,4 +1,5 @@
 import Redis from "ioredis";
+import { registerLua } from "./redis-commands.js";
 
 const redis = new Redis({
   host: process.env.REDIS_HOST || "127.0.0.1",
@@ -14,5 +15,7 @@ redis.on("connect", () => {
 redis.on("error", (err) => {
   console.error("Redis error:", err);
 });
+
+registerLua(redis);
 
 export default redis;
