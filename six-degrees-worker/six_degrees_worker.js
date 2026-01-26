@@ -48,13 +48,6 @@ async function runBFS(startArticle, targetArticle) {
   const pushed = await redis.initJobData( aliveKey, initializedKey, visitedKey, parentKey, depthKey, frontierKey, statsKey, startArticle );
   if(pushed){
     console.log(`runBFS => ${localJobId} | worker: ${workerGuid} | initialized.`);
-    await redis.multi()
-      .sadd(visitedKey, startArticle)
-      .hset(parentKey, startArticle, "")
-      .hset(depthKey, startArticle, 0)
-      .lpush(frontierKey, startArticle)
-      .hset(statsKey, "totalExpanded", 0)
-      .exec();
   }else{
     console.log(`runBFS => ${localJobId} | worker: ${workerGuid} | not initialized.`);
   }
@@ -71,28 +64,19 @@ async function runBFS(startArticle, targetArticle) {
     const links = await expandNode(currentArticle);
 
     for (const article of links) {
-      const pushed = await redis.pushJobData(
-        aliveKey,
-        visitedKey,
-        parentKey,
-        depthKey,
-        frontierKey,
-        article,
-        currentArticle,
-        Number(depth) + 1
-      );
+      const pushed = await redis.pushJobData(aliveKey, visitedKey, parentKey, depthKey, frontierKey, article, currentArticle, Number(depth) + 1);
 
       if (!pushed) continue;
 
       if (article === targetArticle) {
-        const frontierSize = await redis.llen(frontierKey);
+        const frontierSize = await redis.fetchFrontierSize(frontierKey);
         await redis.publish(channel, JSON.stringify({type: "found", totalLinksExpanded: expanded, frontierSize}));
         return;
       }
     }
 
     if (expanded % 2 === 0) {
-      const frontierSize = await redis.llen(frontierKey);
+      const frontierSize = await redis.fetchFrontierSize(frontierKey);
       await redis.publish(
         channel,
         JSON.stringify({ type: "progress", totalLinksExpanded: expanded, frontierSize })
