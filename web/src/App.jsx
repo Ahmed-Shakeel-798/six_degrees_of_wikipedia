@@ -3,6 +3,9 @@ import { useState, useRef } from "react";
 function App() {
   const [start, setStart] = useState("");
   const [target, setTarget] = useState("");
+  const [jobId, setJobId] = useState(null);
+  const [addingWorker, setAddingWorker] = useState(false);
+  const [toast, setToast] = useState(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
@@ -18,6 +21,7 @@ function App() {
     setResult(null);
     setError(null);
     setLoading(true);
+    setJobId(null);
 
     const source = new EventSource(
       `http://localhost:3000/api/search/stream?startArticle=${encodeURIComponent(start)}&targetArticle=${encodeURIComponent(target)}`
@@ -27,6 +31,10 @@ function App() {
 
     source.onmessage = (event) => {
       const data = JSON.parse(event.data);
+
+      if (data.jobId) {
+        setJobId(data.jobId);
+      }
 
       if (data.status === "progress") {
         setResult((prev) => ({
@@ -38,6 +46,8 @@ function App() {
       if (data.status === "done") {
         setResult(data);
         setLoading(false);
+        setJobId(null);
+        setAddingWorker(false);
         source.close();
         eventSourceRef.current = null;
       }
@@ -45,6 +55,8 @@ function App() {
       if (data.status === "error") {
         setError(data.message);
         setLoading(false);
+        setJobId(null);
+        setAddingWorker(false);
         source.close();
         eventSourceRef.current = null;
       }
@@ -58,14 +70,52 @@ function App() {
     }
 
     setLoading(false);
+    setJobId(null);
+    setAddingWorker(false);
 
     setResult((prev) => ({
       ...prev,
       cancelled: true,
-      // keep totalLinksExpanded as is
-      // remove formatted time so it uses Calculating style
       timeTaken: prev?.timeTaken ? prev.timeTaken : undefined,
     }));
+  }
+
+  async function addWorker() {
+    if (!jobId || addingWorker) return;
+
+    setAddingWorker(true);
+
+    try {
+      const res = await fetch("http://localhost:3000/api/search/add-worker", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId }),
+      });
+
+      const data = await res.json();
+
+      if (data.added) {
+        setToast({
+          type: "success",
+          message: "New worker added successfully",
+        });
+      } else {
+        setToast({
+          type: "warning",
+          message: data.message || "No available workers",
+        });
+      }
+    } catch (err) {
+      setToast({
+        type: "error",
+        message: "Failed to add worker",
+      });
+    } finally {
+      setAddingWorker(false);
+    }
+
+    // auto-dismiss
+    setTimeout(() => setToast(null), 3000);
   }
 
   return (
@@ -91,16 +141,31 @@ function App() {
             {loading ? "Searching..." : "Submit"}
           </button>
 
-          {/* Cancel button */}
-            {loading && (
+          {loading && (
+            <div style={styles.actionRow}>
+                <button
+                  type="button"
+                  onClick={cancelSearch}
+                  style={styles.cancelButton}
+                >
+                  Cancel
+                </button>
+
               <button
                 type="button"
-                onClick={cancelSearch}
-                style={styles.cancelButton}
+                onClick={addWorker}
+                disabled={!jobId || addingWorker}
+                style={{
+                  ...styles.workerButton,
+                  opacity: jobId && !addingWorker ? 1 : 0.5,
+                  cursor: jobId && !addingWorker ? "pointer" : "not-allowed",
+                }}
               >
-                Cancel
+                {addingWorker ? "Adding..." : "Add worker"}
               </button>
-            )}
+
+            </div>
+          )}
         </form>
 
         {loading && <p style={styles.muted}>⏳ Searching Wikipedia…</p>}
@@ -166,6 +231,30 @@ function App() {
             </p>
           </div>
         )}
+
+        {toast && (
+          <div
+            style={{
+              position: "fixed",
+              bottom: "20px",
+              right: "20px",
+              padding: "12px 16px",
+              borderRadius: "8px",
+              background:
+                toast.type === "success"
+                  ? "#16a34a"
+                  : toast.type === "warning"
+                  ? "#ca8a04"
+                  : "#dc2626",
+              color: "#fff",
+              boxShadow: "0 10px 25px rgba(0,0,0,0.4)",
+              zIndex: 1000,
+            }}
+          >
+            {toast.message}
+          </div>
+        )}
+
       </div>
     </div>
   );
@@ -276,7 +365,14 @@ const styles = {
     opacity: 0.75,
   },
 
+  actionRow: {
+    display: "flex",
+    gap: "12px",
+    width: "100%",
+  },
+
   cancelButton: {
+    flex: 1,                 
     padding: "12px",
     fontSize: "16px",
     borderRadius: "6px",
@@ -284,6 +380,16 @@ const styles = {
     background: "#1f2937",
     color: "#e5e7eb",
     cursor: "pointer",
+  },
+
+  workerButton: {
+    flex: 1,               
+    padding: "12px",
+    fontSize: "16px",
+    borderRadius: "6px",
+    border: "1px solid #2563eb",
+    background: "#1e40af",
+    color: "#fff",
   },
 };
 

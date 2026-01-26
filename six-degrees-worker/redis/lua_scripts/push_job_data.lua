@@ -14,10 +14,6 @@ if redis.call("EXISTS", KEYS[1]) == 0 then
   return 0
 end
 
--- Abort if frontier gone (job cleanup)
-if redis.call("EXISTS", KEYS[5]) == 0 then
-  return 0
-end
 
 if redis.call("SADD", KEYS[2], ARGV[1]) == 0 then
   return 0

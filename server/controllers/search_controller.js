@@ -5,6 +5,30 @@ import { cleanupJob } from "../redis/redis_cleanup.js";
 import { reconstructPath } from "../services/backtrack.js";
 import { normalizeTitle, formatDuration } from "../utils/utils.js";
 
+export async function addWorker(req, res) {
+  try {
+    console.log("addWorker => Received request to add worker.");
+    console.log("addWorker => Request body:", req.body);
+    const jobId = req.body.jobId;
+    if (!jobId) {
+      return res.status(400).json({ error: "jobId is required" });
+    }
+
+    const workerGuid = await redis.rpop("sixdeg:availableWorkers");
+    if (!workerGuid) {
+      return res.status(200).json({ added: false, message: "No available workers" });
+    }
+
+    await redis.lpush(`sixdeg:worker:${workerGuid}`, JSON.stringify({ task: "start", data: { jobId: jobId },}));
+    console.log(`addWorker => Assigned additional worker ${workerGuid} to job ${jobId}`);
+
+    return res.status(200).json({ added: true });
+  } catch (error) {
+    console.error("addWorker => error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
 export async function searchStream(req, res) {
   const jobId = uuidv4();
   const startArticle = normalizeTitle(req.query.startArticle);
@@ -40,31 +64,15 @@ export async function searchStream(req, res) {
 
   const startTime = process.hrtime.bigint();
 
-  const numWorkers = 3;
-  const assignedWorkers = [];
-
-  for (let i = 0; i < numWorkers; i++) {
-    const workerGuid = await redis.rpop("sixdeg:availableWorkers");
-    if (workerGuid) {
-      assignedWorkers.push(workerGuid);
-    }
-  }
-
-  if (assignedWorkers.length === 0) {
+  const workerGuid = await redis.rpop("sixdeg:availableWorkers");
+  if (!workerGuid) {
     send({ status: "worker_unavailable" });
     res.end();
-  } else {
-    console.log(`searchStream => Assigning job ${jobId} to workers ${assignedWorkers.join(", ")}`);
-
-    let timeout = 0;
-    // mark job alive once per worker
-    for (const workerGuid of assignedWorkers) {
-      setTimeout(async () => {
-        await redis.set(`sixdeg:${jobId}:alive`, 1);
-        await redis.lpush(`sixdeg:worker:${workerGuid}`, JSON.stringify({ task: "start", data: { jobId, startArticle, targetArticle },}));
-      }, timeout);
-      timeout += 2000;
-    }
+    return;
+  }else{
+    await redis.set(`sixdeg:${jobId}:alive`, 1);
+    await redis.lpush(`sixdeg:worker:${workerGuid}`, JSON.stringify({ task: "start", data: { jobId, startArticle, targetArticle },}));
+    console.log(`searchStream => Assigning job ${jobId} to worker ${workerGuid}`);
   }
 
   send({ status: "started", jobId });

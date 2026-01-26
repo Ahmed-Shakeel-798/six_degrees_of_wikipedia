@@ -1,8 +1,9 @@
 import express from "express";
-import { searchStream } from "../controllers/search_controller.js";
+import { searchStream, addWorker } from "../controllers/search_controller.js";
 
 const router = express.Router();
 
 router.get("/stream", searchStream);
+router.post("/add-worker", addWorker);
 
 export default router;

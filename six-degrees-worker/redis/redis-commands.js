@@ -22,4 +22,9 @@ export function registerLua(redis) {
     numberOfKeys: 5,
     lua: fs.readFileSync(luaPath("push_job_data.lua"), "utf8")
   });
+
+  redis.defineCommand("fetchFrontierSize", {
+    numberOfKeys: 1,
+    lua: fs.readFileSync(luaPath("fetch_frontier_size.lua"), "utf8")
+  })
 }
