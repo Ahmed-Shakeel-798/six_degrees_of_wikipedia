@@ -9,7 +9,7 @@ export function registerLua(redis) {
   const luaPath = (filename) => path.join(__dirname, "lua_scripts", filename);
 
   redis.defineCommand("initJobData", {
-    numberOfKeys: 7,
+    numberOfKeys: 9,
     lua: fs.readFileSync(luaPath("init_job_data.lua"), "utf8")
   });
 
@@ -27,4 +27,9 @@ export function registerLua(redis) {
     numberOfKeys: 1,
     lua: fs.readFileSync(luaPath("fetch_frontier_size.lua"), "utf8")
   })
+
+  redis.defineCommand("fetchStartAndTarget", {
+    numberOfKeys: 2,
+    lua: fs.readFileSync(luaPath("fetch_start_and_target.lua"), "utf8")
+  });
 }

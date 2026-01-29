@@ -1,6 +1,5 @@
 -- KEYS:
--- 1 = frontierKey
+-- 1 = frontierKey (ZSET)
 
-local frontierSize = redis.call("LLEN", KEYS[1])
-
+local frontierSize = redis.call("ZCARD", KEYS[1])
 return { frontierSize }
