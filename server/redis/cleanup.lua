@@ -9,7 +9,9 @@ redis.call("DEL",
   prefix .. "frontier",
   prefix .. "stats",
   prefix .. "alive",
-  prefix .. "initialized"
+  prefix .. "initialized",
+  prefix .. "startArticle",
+  prefix .. "targetArticle"
 )
 
 return 1
